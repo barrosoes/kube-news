@@ -1,0 +1,15 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: kube-news
+  namespace: kube-news
+  labels:
+    release: kube-prometheus-stack   # deve casar com o serviceMonitorSelector do Prometheus
+spec:
+  selector:
+    matchLabels:
+      app: kube-news
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s

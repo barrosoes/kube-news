@@ -1,0 +1,45 @@
+version: "2.4"   # docker-compose < 1.27 precisa do formato 2.4 para condition: service_healthy
+
+services:
+  app:
+    build:
+      context: ./src
+    image: kube-news:v2
+    container_name: kube-news-app
+    ports:
+      - "8080:8080"
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_DATABASE: ${DB_DATABASE:-kubedevnews}
+      DB_USERNAME: ${DB_USERNAME:-kubedevnews}
+      DB_PASSWORD: ${DB_PASSWORD:-Pg#123}
+    depends_on:
+      db:
+        condition: service_healthy     # a app encerra se o banco não estiver pronto (models/post.js:59)
+    restart: unless-stopped
+    networks: [backend]
+
+  db:
+    image: postgres:16-alpine
+    container_name: kube-news-db
+    # sem "ports:" — o banco só é acessível pela rede interna
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:-kubedevnews}
+      POSTGRES_USER: ${DB_USERNAME:-kubedevnews}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-Pg#123}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+    networks: [backend]
+
+volumes:
+  db-data:
+
+networks:
+  backend:

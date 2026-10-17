@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kube-news
+  namespace: kube-news
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: kube-news
+  template:
+    metadata:
+      labels:
+        app: kube-news
+    spec:
+      # Só com registry privado (ex.: OCIR); remova para imagens públicas
+      # imagePullSecrets:
+      #   - name: <pull-secret>
+      # A aplicação encerra se o banco não estiver acessível na subida — remova se a app tratar isso
+      initContainers:
+        - name: wait-db
+          image: postgres:16-alpine
+          command: ["sh", "-c", "until pg_isready -h postgres -p 5432; do echo aguardando banco; sleep 2; done"]
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: kube-news
+      containers:
+        - name: kube-news
+          image: barrosoes/kube-news:v2
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: DB_HOST
+              value: postgres
+            - name: DB_PORT
+              value: "5432"
+          envFrom:
+            - secretRef:
+                name: kube-news-db
+          livenessProbe:
+            httpGet: { path: /health, port: http }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet: { path: /ready, port: http }
+            periodSeconds: 5
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { cpu: 500m, memory: 256Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kube-news
+  namespace: kube-news
+  labels:
+    app: kube-news
+spec:
+  selector:
+    app: kube-news
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
