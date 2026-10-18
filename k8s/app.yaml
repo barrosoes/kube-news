@@ -33,7 +33,7 @@ spec:
               app: kube-news
       containers:
         - name: kube-news
-          image: barrosoes/kube-news:sha-3d080a7
+          image: barrosoes/kube-news:v2
           ports:
             - name: http
               containerPort: 8080
