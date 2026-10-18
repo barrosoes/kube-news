@@ -13,4 +13,6 @@ spec:
     server: https://kubernetes.default.svc
     namespace: kube-news
   syncPolicy:
-    automated: {}
+    automated:
+      prune: true
+      selfHeal: true

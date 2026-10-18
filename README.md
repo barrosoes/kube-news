@@ -93,6 +93,52 @@ Content-Type: application/json
 # Conteúdo do arquivo popula-dados.http
 ```
 
+## ☸️ Kubernetes e GitOps
+
+O estado do cluster vem exclusivamente de `k8s/` na branch `main`; o ArgoCD (`argocd/kube-news-application.yaml`) aplica com `prune` e `selfHeal`. Alterações manuais via `kubectl` em recursos de `k8s/` são revertidas.
+
+### Fluxo de deploy
+
+```
+push em src/** (main) → GitHub Actions (.github/workflows/deploy.yaml)
+  build → Trivy (informativo) → push barrosoes/kube-news:sha-<7>
+  → commit "chore(deploy): kube-news sha-<7> [skip ci]" em k8s/app.yaml
+  → ArgoCD sincroniza → Deployment atualizado
+```
+
+- **Gatilho:** push em `main` que altere `src/**` (ou `workflow_dispatch`). Commits só em `k8s/` ou `README.md` não disparam o pipeline.
+- **Tag:** sempre `sha-<7 primeiros caracteres do commit>`, imutável; não existe `latest`.
+- **Secrets do GitHub:** `DOCKERHUB_USERNAME` e `DOCKERHUB_TOKEN`.
+- **Scan:** o resultado do Trivy aparece em Security > Code scanning e no resumo da execução, mas não bloqueia o deploy.
+- **Rollback:** `git revert <commit chore(deploy)>` e `git push`; o ArgoCD volta a imagem anterior.
+
+### Segredos (Sealed Secrets)
+
+O controller roda em `kube-system` (`argocd/sealed-secrets-application.yaml`) e o Secret do banco está versionado cifrado em `k8s/sealed-secret-kube-news-db.yaml`.
+
+Criar ou rotacionar um segredo (sem gravar o valor em claro no repositório):
+
+```bash
+kubectl create secret generic kube-news-db -n kube-news \
+  --from-literal=DB_DATABASE=<db> --from-literal=DB_USERNAME=<user> --from-literal=DB_PASSWORD=<senha> \
+  --dry-run=client -o yaml | kubeseal -o yaml > k8s/sealed-secret-kube-news-db.yaml
+```
+
+Trocar `DB_PASSWORD` no Secret não altera a senha do usuário no Postgres já inicializado; altere-a também no banco (`ALTER USER`).
+
+**Backup da chave:** a chave privada do controller foi salva fora do repositório, em `~/backups/sealed-secrets/kube-news-oke-key.yaml`. Sem ela, os SealedSecrets não são decifráveis se o cluster for recriado. Para gerar de novo:
+
+```bash
+kubectl get secret -n kube-system -l sealedsecrets.bitnami.com/sealed-secrets-key -o yaml > <arquivo-seguro>
+```
+
+**Rollback dos Sealed Secrets:** antes de remover o SealedSecret do git, tire do Secret a anotação `sealedsecrets.bitnami.com/managed` e o `ownerReference`; caso contrário a remoção apaga o Secret e derruba a aplicação.
+
+```bash
+kubectl annotate secret kube-news-db -n kube-news sealedsecrets.bitnami.com/managed-
+kubectl patch secret kube-news-db -n kube-news --type=json -p '[{"op":"remove","path":"/metadata/ownerReferences"}]'
+```
+
 ## 📊 Monitoramento e Health Checks
 
 A aplicação disponibiliza endpoints para monitoramento e também recursos para simular cenários de falha, muito úteis para testar a resiliência em ambientes Kubernetes:
