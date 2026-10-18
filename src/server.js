@@ -1,3 +1,4 @@
+// kube-news: entrada da aplicação
 const express = require('express');
 const app = express();
 const models = require('./models/post')
