@@ -109,7 +109,7 @@ push em src/** (main) → GitHub Actions (.github/workflows/deploy.yaml)
 - **Gatilho:** push em `main` que altere `src/**` (ou `workflow_dispatch`). Commits só em `k8s/` ou `README.md` não disparam o pipeline.
 - **Tag:** sempre `sha-<7 primeiros caracteres do commit>`, imutável; não existe `latest`.
 - **Secrets do GitHub:** `DOCKERHUB_USERNAME` e `DOCKERHUB_TOKEN`.
-- **Scan:** o resultado do Trivy aparece em Security > Code scanning e no resumo da execução, mas não bloqueia o deploy.
+- **Scan:** o resultado do Trivy aparece em Security > Code scanning e no resumo da execução, mas não bloqueia o deploy (modo informativo).
 - **Rollback:** `git revert <commit chore(deploy)>` e `git push`; o ArgoCD volta a imagem anterior.
 
 ### Segredos (Sealed Secrets)
